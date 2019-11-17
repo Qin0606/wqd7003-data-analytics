@@ -26,7 +26,8 @@ df.dtypes #all numeric
 #check for missing values
 df.isna().sum() #no missing values
 
-#Convert numeric into categorical as it represent location not numeric values
+#Convert zipcode into categorical as it represent location not numeric values
+#Convert waterfront to categorical as well (according to data table)
 df['zipcode'] = df['zipcode'].astype('category',copy=False)
 df['waterfront'] = df['waterfront'].astype('category',copy=False)
 df.dtypes
@@ -62,10 +63,6 @@ sns.boxplot(df['bathrooms'],df['price'])
 plt.figure(figsize=(15,8))
 sns.boxplot(df['grade'],df['price'])
 
-#histogram of price
-plt.hist(df['price'],bins =50) #not normally distributed, right skewed
-plt.xticks(rotation=90)
-
 #correlation between all numeric variables
 corr_matrix = df.corr()
 
@@ -78,6 +75,10 @@ highly_correlated_variables = filter_corr_matrix.index.values
 highly_correlated_variables_corr = df[highly_correlated_variables].corr()
 sns.heatmap(highly_correlated_variables_corr) #perhaps can try using all 5 variables
 
+#histogram of price
+plt.hist(df['price'],bins =50) #not normally distributed, right skewed
+plt.xticks(rotation=90)
+
 #check distribution of each selected variable
 plt.hist(df['bathrooms']) #right skewed
 plt.hist(df['sqft_living']) #right skewed
@@ -88,11 +89,26 @@ plt.hist(df['sqft_living15']) #right skewed
 #prepare x and y dataset
 #transform x and y to make them normally distirbuted for better accuracy
 X = df[highly_correlated_variables]
-X['bathrooms'] = np.log1p(X['bathrooms']) # transform by log(1+x) for right skewed data
-X['sqft_living'] = np.log1p(X['sqft_living']) # transform by log(1+x) for right skewed data
-X['grade'] = X['grade']**1.5 # transform by multiplying to the power of 1.5 for right skewed data, can be also square or cube, but for this case, 1.5 works best
-X['sqft_above'] = np.log1p(X['sqft_above']) # transform by log(1+x) for right skewed data
-X['sqft_living15'] = np.sqrt(X['sqft_living15']) # transform by sqrt for right skewed data, log(1+x) does not work for this variable
+
+# transform X['bathrooms'] by log(1+x) for right skewed data
+X['bathrooms'] = np.log1p(X['bathrooms']) 
+
+# transform X['sqft_living'] by log(1+x) for right skewed data
+X['sqft_living'] = np.log1p(X['sqft_living']) 
+ 
+# transform X['grade'] by multiplying to the power of 1.5 for right skewed data,
+#can be also square or cube, but for this case, 1.5 works best
+X['grade'] = X['grade']**1.5 
+
+# transform X['sqft_above'] by log(1+x) for right skewed data
+X['sqft_above'] = np.log1p(X['sqft_above']) 
+
+# transform X['sqft_living15'] by square rooting for right skewed data, log(1+x) does not work for this variable
+X['sqft_living15'] = np.sqrt(X['sqft_living15']) 
+
+ # transform y by log(1+x) for right skewed data
+y = df['price']
+y = np.log1p(y)
 
 #reference for data transformation http://seismo.berkeley.edu/~kirchner/eps_120/Toolkits/Toolkit_03.pdf
 
@@ -101,13 +117,12 @@ plt.hist(X['sqft_living']) #looks more normally distributed
 plt.hist(X['grade']) #looks more normally distributed
 plt.hist(X['sqft_above']) #looks more normally distributed
 plt.hist(X['sqft_living15']) #looks more normally distributed
+plt.hist(y) #looks more normally distributed
 
 #Adding categorical variables into X
 X['zipcode'] = df['zipcode']
 X['waterfront'] = df['waterfront']
-y = df['price']
-y = np.log1p(y) # transform by log(1+x) for right skewed data
-plt.hist(y)
+
 
 #One hot encode categorical value 
 X['zipcode'].value_counts()
@@ -129,7 +144,15 @@ predictions = lm.predict(X_test)
 predictions = np.expm1(predictions) #to inverse the log
 y_test = np.expm1(y_test)
 plt.scatter(y_test,predictions)
+
+#Evaluate the result
+#define a function for MAPE as there is no built-in function
+def mean_absolute_percentage_error(y_true, y_pred): 
+    y_true, y_pred = np.array(y_true), np.array(y_pred)
+    return np.mean(np.abs((y_true - y_pred) / y_true)) * 100
+
 print('MAE:', metrics.mean_absolute_error(y_test, predictions))
+print('MAPE:', mean_absolute_percentage_error(y_test, predictions)) #14.77%
 print('MSE:', metrics.mean_squared_error(y_test, predictions))
 print('RMSE:', np.sqrt(metrics.mean_squared_error(y_test, predictions)))
 print('R2:', metrics.r2_score(y_test, predictions)) #0.87!
